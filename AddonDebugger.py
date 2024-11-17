@@ -41,7 +41,7 @@ def convert_speed(entry):
 ysflight_folderpath = os.path.join(os.getcwd(), 'Majorpack2_20110425')
 
 
-ysf_version = 20150425
+ysf_version = 20150425  # Not currently used, but could be used to determine valid/invalid DAT variables.
 
 # Define filetypes that we have tests for.
 filetypes_to_test = ['.lst', '.dat'] #, '.dnm', '.fld', '.acp']
@@ -71,6 +71,7 @@ if ysf_version > 20150000:
     allowed_lst_filetypes['air'][-1].append('dnm')
     
 lst_filepaths = [i for i in analysis_filepaths if i.lower().endswith(".lst")]
+print("Found {} LST Files to process".format(len(lst_filepaths)))
 for filepath in lst_filepaths:
     # Import the lst file
     lst_file = import_file(filepath)
@@ -174,6 +175,7 @@ for filepath in lst_filepaths:
         
 
 dat_filepaths = [i for i in analysis_filepaths if i.lower().endswith(".dat")]
+print("Found {} Dat Files to process".format(len(dat_filepaths)))
 identify_lines = list()
 for filepath in dat_filepaths:
     # Import the lst file
@@ -250,10 +252,29 @@ for filepath in dat_filepaths:
             
     
 # Test to see if we have duplicate identify names. Also need to check that there are not duplicates within the first 32 characters
-first_32_identify = [i[:31] for i in identify_lines if len(i) > 32 else i]
+first_32_identify = list()
+absolute_dupes = [i for i in identify_lines if identify_lines.count(i) > 1]
+absolute_dupes = list(set(absolute_dupes))
 for identify in identify_lines:
-    if identify_lines.count(identify) > 1:
-        # We have actual duplicates
+    if len(identify) > 32:
+        first_32_identify.append(identify[:31])
+    else:
+        first_32_identify.append(identify)
+first_32_dupes = [i for i in first_32_identify if first_32_identify.count(i) > 1 and i not in absolute_dupes]
+first_32_dupes = list(set(first_32_dupes))
+
+for duplicate in absolute_dupes:
+    idxs = [idx for idx, i in enumerate(identify_lines) if i == duplicate]
+    
+    rel_paths = [os.path.relpath(i, ysflight_folderpath) for idx, i in enumerate(dat_filepaths) if idx in idxs]
+    
+    errors.append(['Muliple', 'Duplicate DAT IDENTIFY Names', rel_paths, 'Multiple DAT files have the IDENTIFY line of "{}"'.format(duplicate), 'If these files are used YSFlight will only load the first version of {} found'.format(duplicate)])
+
+for duplicate in first_32_dupes:
+    idxs = [idx for idx, i in enumerate(first_32_identify) if i == duplicate]
+    rel_paths = [os.path.relpath(i, ysflight_folderpath) for idx, i in enumerate(dat_filepaths) if idx in idxs]
+    identify_lines = [i for idx, i in enumerate(identify_lines) if idx in idxs]
+    errors.append(['Multiple', 'Duplicate DAT IDENTIFY Names', rel_paths, 'Multiple DAT Files were found with identical first 32 characters of IDENTIFY lines. If used in YSFlight, only the first will load.', identify_lines])
 
 
 
